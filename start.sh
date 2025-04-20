@@ -109,6 +109,10 @@ docker run -d \
   -e BACKEND_URL=http://kotlin-backend:8080 \
   -p 8081:8080 \
   "$FRONTEND_CONTAINER" || handle_error
+
+echo "${BOLD}${BLUE}Kopíruju soubory do kontejneru...${RESET}"
+docker cp "$SCRIPT_DIR/../frontend/src/main/webapp" "$FRONTEND_CONTAINER:/app/webapp" || handle_error
+echo "${BOLD}${GREEN}Soubory zkopírovány do kontejneru${RESET}"
 echo "${BOLD}${GREEN}OPERACE PRO FRONTEND DOKONČENY${RESET}"
 echo ""
 
