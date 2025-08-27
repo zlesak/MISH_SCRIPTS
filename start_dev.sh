@@ -7,7 +7,6 @@ BLUE=$(tput setaf 4)
 BOLD=$(tput bold)
 RESET=$(tput sgr0)
 
-# Error handling function
 handle_error() {
     echo "${BOLD}${RED}Došlo k chybě! Stiskni Enter pro ukončení skriptu...${RESET}$"
     read -r
@@ -83,44 +82,10 @@ echo "${BOLD}${GREEN}OPERACE PRO BACKEND DOKONČENY ${RESET}"
 echo ""
 
 #
-#FRONTEND
-#
-echo "${BOLD}${GREEN}OPERACE PRO FRONTEND${RESET}"
-
-cd "$SCRIPT_DIR/../frontend" || handle_error
-echo "${BOLD}${BLUE}Buildím frontend...${RESET}"
-./mvnw clean package -DskipTests -Pproduction || handle_error
-
-echo "${BOLD}${BLUE}Kopíruju frontend .jar do build složky pro Docker...${RESET}"
-FRONTEND_JAR=$(find "$SCRIPT_DIR/../frontend/target" -name "*.jar" | head -n 1)
-cp "$FRONTEND_JAR" "$SCRIPT_DIR/frontend/app.jar" || handle_error
-
-echo "${BOLD}${BLUE}Buildím Docker image pro frontend...${RESET}"
-cd "$SCRIPT_DIR/frontend" || handle_error
-./build_frontend.sh || handle_error
-
-cd "$SCRIPT_DIR" || handle_error
-
-# Spuštění frontend kontejneru
-echo "${BOLD}${BLUE}Spouštím frontend kontejner...${RESET}"
-docker run -d \
-  --name "$FRONTEND_CONTAINER" \
-  --network "$NETWORK_NAME" \
-  -e BACKEND_URL=http://kotlin-backend:8080 \
-  -p 8081:8081 \
-  "$FRONTEND_CONTAINER" || handle_error
-
-echo "${BOLD}${BLUE}Kopíruju soubory do kontejneru...${RESET}"
-docker cp "$SCRIPT_DIR/../frontend/src/main/webapp" "$FRONTEND_CONTAINER:/app/webapp" || handle_error
-echo "${BOLD}${GREEN}Soubory zkopírovány do kontejneru${RESET}"
-echo "${BOLD}${GREEN}OPERACE PRO FRONTEND DOKONČENY${RESET}"
-echo ""
-
-#
 #FINAL
 #
 echo "${BOLD}${GREEN}SPUŠTĚNÍ DOKONČENO${RESET}"
 echo "${BOLD}${BLUE}Backend:${RESET}  http://localhost:8080"
-echo "${BOLD}${BLUE}Frontend:${RESET} http://localhost:8081"
+echo "${BOLD}${BLUE}Frontend:${RESET} SPUSTIT RUČNĚ NA PORTU 8081!"
 echo ""
 read -p "Stiskni Enter pro ukončení skriptu..." -r
