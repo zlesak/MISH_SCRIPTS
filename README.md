@@ -35,4 +35,4 @@ If you want to stop the whole stack, use stop.sh script. <br />
 <br />
 **__In case of edit, made changes in this script also needs to be written here in readme.md for documentation!__**
 ~~~~
-last change: 13.10.2025 by j.zlesak
+last change: 09.11.2025 by j.zlesak - openjdk image change, old not available anymore
