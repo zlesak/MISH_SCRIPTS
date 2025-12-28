@@ -48,6 +48,24 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$MONGO_CONTAINER"; then
 fi
 
 #
+#SECURITY - pokud existuje
+#
+if docker ps -a --format '{{.Names}}' | grep -qx "$SECURITY_CONTAINER"; then
+  echo "${BLUE}Zastavuji Security (docker compose stop)...${RESET}"
+  if [ -d "$SCRIPT_DIR/../backend/mocked-auth-providers" ]; then
+    pushd "$SCRIPT_DIR/../backend/mocked-auth-providers" >/dev/null || handle_error
+    if docker compose version >/dev/null 2>&1; then
+      docker compose stop >/dev/null || handle_error
+    else
+      docker-compose stop >/dev/null || handle_error
+    fi
+    popd >/dev/null || true
+  else
+    echo "${RED}Adresář backend/mocked-auth-providers nebyl nalezen.${RESET}"
+  fi
+fi
+
+#
 #FINAL
 #
 echo "${BOLD}${GREEN}UKONČENÍ DOKONČENO${RESET}"

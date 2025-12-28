@@ -14,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Sdílené názvy napoříč skripty
 NETWORK_NAME="mish_net"
 MONGO_CONTAINER="mongodb"
+SECURITY_CONTAINER="mock-oidc"
 BACKEND_CONTAINER="kotlin-backend"
 FRONTEND_CONTAINER="vaadin-frontend"
 

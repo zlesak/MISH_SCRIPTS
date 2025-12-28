@@ -33,6 +33,21 @@ echo "${BOLD}${GREEN}OPERACE PRO MONGO DOKONČENY${RESET}"
 echo ""
 
 #
+#SECURITY
+#
+echo "${BOLD}${GREEN}OPERACE PRO SECURITY${RESET}"
+echo "${BOLD}${BLUE}Spouštím Security z docker-compose...${RESET}"
+pushd "$SCRIPT_DIR/../backend/mocked-auth-providers" >/dev/null || handle_error
+if ! compose up -d; then
+  handle_error
+fi
+popd >/dev/null || true
+echo "${BOLD}${GREEN}Security spuštěno.${RESET}"
+echo "${BOLD}${GREEN}OPERACE PRO SECURITY DOKONČENY${RESET}"
+echo ""
+
+
+#
 #BACKEND
 #
 echo "${BOLD}${GREEN}OPERACE PRO BACKEND${RESET}"
@@ -55,10 +70,11 @@ popd >/dev/null || true
 
 echo "${BOLD}${BLUE}Spouštím backend kontejner...${RESET}"
 docker run -d \
+  --env-file .dev.env \
   --name "$BACKEND_CONTAINER" \
   --network "$NETWORK_NAME" \
   -e SPRING_DATA_MONGODB_URI="mongodb://root:example@mongodb:27017/mish-db?authSource=admin" \
-  -p 8080:8080 \
+  -p 8050:8050 \
   "$BACKEND_CONTAINER" || handle_error
 echo "${BOLD}${GREEN}OPERACE PRO BACKEND DOKONČENY ${RESET}"
 echo ""
@@ -84,9 +100,10 @@ if [ -d "$SCRIPT_DIR/../frontend" ]; then
 
   echo "${BOLD}${BLUE}Spouštím frontend kontejner...${RESET}"
   docker run -d \
+    --env-file .dev.env \
     --name "$FRONTEND_CONTAINER" \
     --network "$NETWORK_NAME" \
-    -e BACKEND_URL="http://kotlin-backend:8080" \
+    -e BACKEND_URL="http://kotlin-backend:8050" \
     -p 8081:8081 \
     "$FRONTEND_CONTAINER" || handle_error
 
@@ -103,6 +120,7 @@ echo ""
 #FINAL
 #
 echo "${BOLD}${GREEN}SPUŠTĚNÍ DOKONČENO${RESET}"
-echo "${BOLD}${BLUE}Backend:${RESET}  http://localhost:8080"
+echo "${BOLD}${BLUE}Security:${RESET}  http://localhost:8080"
+echo "${BOLD}${BLUE}Backend:${RESET}  http://localhost:8050"
 echo "${BOLD}${BLUE}Frontend:${RESET} http://localhost:8081"
 echo ""
