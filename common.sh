@@ -23,6 +23,7 @@ SECURITY_CONTAINER=mock-oidc
 BACKEND_CONTAINER=kotlin-backend
 MONGO_CONTAINER=mongo-tls
 FRONTEND_CONTAINER=vaadin-frontend
+GATEWAY_CONTAINER=mish-gateway
 
 compose() {
   if docker compose version >/dev/null 2>&1; then

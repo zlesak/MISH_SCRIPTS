@@ -9,6 +9,8 @@ MISH_SCRIPTS/<br />
 &emsp;├── frontend/<br />
 &emsp;│&emsp;├── Dockerfile<br />
 &emsp;│&emsp;└── build_frontend.sh<br />
+&emsp;├── nginx/<br />
+&emsp;│&emsp;└── nginx.conf<br />
 &emsp;├── common.sh<br />
 &emsp;├── start_all.sh<br />
 &emsp;└── stop.sh<br />
@@ -38,6 +40,11 @@ This will start the whole stack with specified branches **if folders are not alr
 <br />
 Without fronted started automatically, to be started manually in hotswap mode for dev purposes on port 8081, use: <br />
 `./start_all.sh --dev --no-frontend` <br />
+Note: when --no-frontend is used and FE run manually, the nginx won't be able to forward to the FE as not run in container, use static access to FE via http://localhost:8081 <br />
+Note 2: When running with .dev.env, add mish to /etc/hosts to resolve to the nginx on port 80, e.g.: <br />
+`
+echo "127.0.0.1 mish" >> /etc/hosts
+` <br />
 
 ### Script start_all.sh has these main parts:<br />
 **├── INITIAL OPERATIONS** <br />
@@ -46,6 +53,7 @@ Without fronted started automatically, to be started manually in hotswap mode fo
 **├── SECURITY** <br />
 **├── BACKEND** <br />
 **├── FRONTEND** <br />
+**├── GATEWAY** <br />
 **└── FINAL** <br /><br />
 Every part is responsible for its scope, given by its name. <br />
 
@@ -62,4 +70,5 @@ If you want to stop and remove all containers, and volumes created by the start_
 **__In case of edit, made changes in this script also needs to be written here in readme.md for documentation!__**
 ~~~~
 last change: 19.01.2026 by j.zlesak - start all script with params instead of separate dev script, README updated
+                                    - nginx added for proper serving on one endpoint, use mish with .dev.env, see updated instructions
 ~~~~

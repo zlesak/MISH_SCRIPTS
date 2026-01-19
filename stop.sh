@@ -13,6 +13,23 @@ fi
 echo "${BOLD}${BLUE}Zastavuji aplikaci...${RESET}"
 
 #
+# GATEWAY
+#
+if docker ps -a --format '{{.Names}}' | grep -qx "$GATEWAY_CONTAINER"; then
+  if $DO_DOWN; then
+    echo "${BLUE}Mažu gateway kontejner...${RESET}"
+    docker rm -f "$GATEWAY_CONTAINER" >/dev/null || true
+  else
+    if docker ps --format '{{.Names}}' | grep -qx "$GATEWAY_CONTAINER"; then
+      echo "${BLUE}Zastavuji gateway...${RESET}"
+      docker stop "$GATEWAY_CONTAINER" >/dev/null || handle_error
+    else
+      echo "${BLUE}Gateway již neběží (kontejner existuje).${RESET}"
+    fi
+  fi
+fi
+
+#
 # BACKEND
 #
 if docker ps -a --format '{{.Names}}' | grep -qx "$BACKEND_CONTAINER"; then

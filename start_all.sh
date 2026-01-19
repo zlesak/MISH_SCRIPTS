@@ -128,7 +128,7 @@ fi
 
 echo "${BOLD}${GREEN}PODPŮRNÉ OPERACE${RESET}"
 echo "${BOLD}${BLUE}Čistím staré kontejnery...${RESET}"
-docker rm -f "$BACKEND_CONTAINER" "$FRONTEND_CONTAINER" "$MONGO_CONTAINER" 2>/dev/null || true
+docker rm -f "$BACKEND_CONTAINER" "$FRONTEND_CONTAINER" "$MONGO_CONTAINER" "$GATEWAY_CONTAINER" 2>/dev/null || true
 echo "${BOLD}${GREEN}PODPŮRNÉ OPERACE DOKONČENY${RESET}"
 echo ""
 
@@ -236,7 +236,6 @@ if $RUN_FRONTEND; then
       --env-file "$ENV_FILE" \
       --name "$FRONTEND_CONTAINER" \
       --network "$NETWORK_NAME" \
-      -e BACKEND_URL="http://kotlin-backend:8050" \
       -p 8081:8081 \
       "$FRONTEND_CONTAINER" || handle_error
 
@@ -252,15 +251,26 @@ else
 fi
 
 #
+# GATEWAY
+#
+echo "${BOLD}${GREEN}OPERACE PRO GATEWAY${RESET}"
+echo "${BOLD}${BLUE}Spouštím Gateway kontejner...${RESET}"
+docker run -d \
+  --name "$GATEWAY_CONTAINER" \
+  --network "$NETWORK_NAME" \
+  --network-alias "$GATEWAY_ALIAS" \
+  -p 80:80 \
+  -v "$SCRIPT_DIR/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
+  nginx:alpine || handle_error
+echo "${BOLD}${GREEN}OPERACE PRO GATEWAY DOKONČENY${RESET}"
+
+#
 #FINAL
 #
 echo ""
 echo "${BOLD}${GREEN}SPUŠTĚNÍ DOKONČENO${RESET}"
-echo "${BOLD}${BLUE}Security:${RESET}  http://localhost:8080"
-echo "${BOLD}${BLUE}Backend:${RESET}  http://localhost:8050"
-if $RUN_FRONTEND; then
-  echo "${BOLD}${BLUE}Frontend:${RESET} http://localhost:8081"
-else
-  echo "${BOLD}${BLUE}Frontend:${RESET} SPUSTIT RUČNĚ NA PORTU 8081!"
+echo "${BOLD}${BLUE}Aplikace:${RESET}   ${FE_URL:-"http://localhost:80"}"
+if ! $RUN_FRONTEND; then
+  echo "${BOLD}${BLUE}Frontend:${RESET} SPUSTIT RUČNĚ NA PORTU 8081! Nelze využívat nginx gateway."
 fi
 
