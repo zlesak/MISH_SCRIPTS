@@ -11,13 +11,6 @@ RESET=$(tput sgr0)
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Sdílené názvy napoříč skripty
-NETWORK_NAME="mish_net"
-MONGO_CONTAINER="mongodb"
-SECURITY_CONTAINER="mock-oidc"
-BACKEND_CONTAINER="kotlin-backend"
-FRONTEND_CONTAINER="vaadin-frontend"
-
 # Error handling funkce
 handle_error() {
     echo "${BOLD}${RED}Došlo k chybě! Stiskni Enter pro ukončení skriptu...${RESET}$"
@@ -25,14 +18,11 @@ handle_error() {
 }
 trap handle_error ERR
 
-ensure_network() {
-  if ! docker network ls --format '{{.Name}}' | grep -qx "$NETWORK_NAME"; then
-    echo "${BOLD}${BLUE}Vytvářím síť $NETWORK_NAME...${RESET}"
-    docker network create "$NETWORK_NAME" >/dev/null
-  else
-    echo "${BLUE}Síť $NETWORK_NAME již existuje.${RESET}"
-  fi
-}
+# Názvy kontejnerů
+SECURITY_CONTAINER=mock-oidc
+BACKEND_CONTAINER=kotlin-backend
+MONGO_CONTAINER=mongo-tls
+FRONTEND_CONTAINER=vaadin-frontend
 
 compose() {
   if docker compose version >/dev/null 2>&1; then
