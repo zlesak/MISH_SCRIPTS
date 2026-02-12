@@ -1,7 +1,7 @@
 # MISH_SCRIPTS
 Scripts for automatic docker startup for full stack of MISH app
 
-Tato repositář má následující strukturu souborů:<br />
+This repository has this structure:<br />
 MISH_SCRIPTS/<br />
 &emsp;├── backend/<br />
 &emsp;│&emsp;├── Dockerfile<br />
@@ -45,6 +45,8 @@ Note 2: When running with .dev.env, add mish to /etc/hosts to resolve to the ngi
 `
 echo "127.0.0.1 mish" >> /etc/hosts
 ` <br />
+Note 3: Keycloak is served through nginx on `/auth` (no direct port 8080). Set `KEYCLOAK_URL` to `http://mish/auth` (or your gateway host) in `.env`/`.dev.env`. <br />
+Note 4: Keycloak and MongoDB ports are not exposed by their compose files; access Keycloak via /auth through nginx. <br />
 
 ### Script start_all.sh has these main parts:<br />
 **├── INITIAL OPERATIONS** <br />
@@ -57,11 +59,6 @@ echo "127.0.0.1 mish" >> /etc/hosts
 **└── FINAL** <br /><br />
 Every part is responsible for its scope, given by its name. <br />
 
-Note: as of version since 29.12.2025 for development mode, there is a need to add a DNS resolve to the /etc/hosts file (all platforms) as the security is provided through Keycloak login page as of now. In example:<br />
-`
-echo "127.0.0.1 mock-oidc" >> /etc/hosts
-` <br />
-  
 If you want to stop the whole stack, use stop.sh script: <br />
 `./stop.sh`  <br />
 If you want to stop and remove all containers, and volumes created by the start_all.sh script, use: <br />
@@ -69,6 +66,7 @@ If you want to stop and remove all containers, and volumes created by the start_
 <br />
 **__In case of edit, made changes in this script also needs to be written here in readme.md for documentation!__**
 ~~~~
-last change: 19.01.2026 by j.zlesak - start all script with params instead of separate dev script, README updated
+last change: 12.02.2026 by j.zlesak - keycloak /auth routing, .dev.env var update, README updated
+previous change: 19.01.2026 by j.zlesak - start all script with params instead of separate dev script, README updated
                                     - nginx added for proper serving on one endpoint, use mish with .dev.env, see updated instructions
 ~~~~

@@ -1,0 +1,8 @@
+.idea/
+.DS_Store
+*.iml
+META-INF/
+backend/app.jar
+frontend/app.jar
+backend/repo/
+frontend/repo/
