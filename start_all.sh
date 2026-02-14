@@ -205,6 +205,7 @@ echo "${BOLD}${BLUE}Spouštím backend kontejner...${RESET}"
 docker run -d \
   --env-file "$ENV_FILE" \
   --name "$BACKEND_CONTAINER" \
+  --restart unless-stopped \
   --network "$NETWORK_NAME" \
   -p 8050:8050 \
   "$BACKEND_CONTAINER" || handle_error
@@ -235,6 +236,7 @@ if $RUN_FRONTEND; then
     docker run -d \
       --env-file "$ENV_FILE" \
       --name "$FRONTEND_CONTAINER" \
+      --restart unless-stopped \
       --network "$NETWORK_NAME" \
       -p 8081:8081 \
       "$FRONTEND_CONTAINER" || handle_error
@@ -253,14 +255,22 @@ fi
 #
 # GATEWAY
 #
+# Výběr  nginx konfiguračního souboru dle --dev
+if [[ "$MODE" == "dev" ]]; then
+  NGINX_CONFIG="nginx-dev.conf"
+else
+  NGINX_CONFIG="nginx.conf"  
+fi
+
 echo "${BOLD}${GREEN}OPERACE PRO GATEWAY${RESET}"
-echo "${BOLD}${BLUE}Spouštím Gateway kontejner...${RESET}"
+echo "${BOLD}${BLUE}Spouštím Gateway kontejner (config: $NGINX_CONFIG)...${RESET}"
 docker run -d \
   --name "$GATEWAY_CONTAINER" \
+  --restart unless-stopped \
   --network "$NETWORK_NAME" \
   --network-alias "$GATEWAY_ALIAS" \
   -p 80:80 \
-  -v "$SCRIPT_DIR/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
+  -v "$SCRIPT_DIR/nginx/$NGINX_CONFIG:/etc/nginx/nginx.conf:ro" \
   nginx:alpine || handle_error
 echo "${BOLD}${GREEN}OPERACE PRO GATEWAY DOKONČENY${RESET}"
 
