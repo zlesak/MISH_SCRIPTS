@@ -66,6 +66,6 @@ If you want to stop and remove all containers, and volumes created by the start_
 <br />
 **__In case of edit, made changes in this script also needs to be written here in readme.md for documentation!__**
 ~~~~
-last change: 14.02.2026 by j.zlesak - env var changes, nginx prod and dev version
-previous change: 12.02.2026 by j.zlesak - keycloak /auth routing, .dev.env var update, README updated
+last change: 19.02.2026 by j.zlesak - dev env var update, nginx vaadin web socket upgrade enabled
+previous change: 14.02.2026 by j.zlesak - env var changes, nginx prod and dev version
 ~~~~
