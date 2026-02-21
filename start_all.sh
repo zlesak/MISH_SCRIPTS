@@ -129,6 +129,9 @@ fi
 echo "${BOLD}${GREEN}PODPŮRNÉ OPERACE${RESET}"
 echo "${BOLD}${BLUE}Čistím staré kontejnery...${RESET}"
 docker rm -f "$BACKEND_CONTAINER" "$FRONTEND_CONTAINER" "$MONGO_CONTAINER" "$GATEWAY_CONTAINER" 2>/dev/null || true
+pushd "$SCRIPT_DIR/backend/repo/redis" >/dev/null
+docker compose down 2>/dev/null || true
+popd >/dev/null || true
 echo "${BOLD}${GREEN}PODPŮRNÉ OPERACE DOKONČENY${RESET}"
 echo ""
 
@@ -146,9 +149,28 @@ echo "${BOLD}${GREEN}OPERACE PRO SÍŤ DOKONČENY${RESET}"
 echo ""
 
 #
+#CERTIFIKÁTY
+#
+echo "${BOLD}${GREEN}OPERACE PRO CERTIFIKÁTY${RESET}"
+echo "${BOLD}${BLUE}Generuji CA certifikát...${RESET}"
+pushd "$SCRIPT_DIR/backend/repo/script-utils" >/dev/null || handle_error
+bash "./generate-ca.sh" "$MONGO_PASSWORD"
+popd >/dev/null || true
+echo "${BOLD}${GREEN}CA certifikát vygenerován.${RESET}"
+# Odstraň staré certifikáty a keyfile před vytvořením nových pro Mongo
+echo "${BOLD}${BLUE}Odstraňuji staré certs-main a keyfile před startem Mongo...${RESET}"
+rm -rf "$SCRIPT_DIR/backend/repo/mongo/certs-main" "$SCRIPT_DIR/backend/repo/mongo/keyfile" || true
+echo "${BOLD}${BLUE}Smazání starých souborů dokončeno.${RESET}"
+echo ""
+
+#
 #MONGO
 #
 echo "${BOLD}${GREEN}OPERACE PRO MONGO${RESET}"
+echo "${BOLD}${BLUE}Generuji certifikáty pro MongoDB...${RESET}"
+pushd "$SCRIPT_DIR/backend/repo/script-utils" >/dev/null || handle_error
+bash "./generate-all-mongo-certs.sh"
+popd >/dev/null || true
 echo "${BOLD}${BLUE}Spouštím MongoDB...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/mongo" >/dev/null || handle_error
 if ! bash "./scripts/start-mongo.sh" "$MONGO_PASSWORD"; then
@@ -157,6 +179,24 @@ fi
 popd >/dev/null || true
 echo "${BOLD}${GREEN}MongoDB spuštěno.${RESET}"
 echo "${BOLD}${GREEN}OPERACE PRO MONGO DOKONČENY${RESET}"
+echo ""
+
+#
+#REDIS
+#
+echo "${BOLD}${GREEN}OPERACE PRO REDIS${RESET}"
+echo "${BOLD}${BLUE}Generuji certifikáty pro Redis...${RESET}"
+pushd "$SCRIPT_DIR/backend/repo/script-utils" >/dev/null || handle_error
+bash "./generate-all-redis-certs.sh"
+popd >/dev/null || true
+echo "${BOLD}${BLUE}Spouštím Redis...${RESET}"
+pushd "$SCRIPT_DIR/backend/repo/redis" >/dev/null || handle_error
+if ! bash "./scripts/startup.sh"; then
+  handle_error
+fi
+popd >/dev/null || true
+echo "${BOLD}${GREEN}Redis spuštěn.${RESET}"
+echo "${BOLD}${GREEN}OPERACE PRO REDIS DOKONČENY${RESET}"
 echo ""
 #
 #SECURITY
@@ -179,7 +219,7 @@ echo "${BOLD}${GREEN}OPERACE PRO BACKEND${RESET}"
 
 echo "${BOLD}${BLUE}KOPÍRUJI ca.pem CERTIFIKÁT${RESET}"
 rm -f "$SCRIPT_DIR/backend/ca.pem"
-cp "$SCRIPT_DIR/backend/repo/mongo/certs/ca.pem" "$SCRIPT_DIR/backend"
+cp "$SCRIPT_DIR/backend/repo/mongo/certs-main/ca.pem" "$SCRIPT_DIR/backend"
 
 echo "${BOLD}${BLUE}Buildím backend pomocí Gradle...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo" >/dev/null || handle_error
