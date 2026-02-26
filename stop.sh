@@ -66,28 +66,51 @@ fi
 #
 # MONGO
 #
-if docker ps -a --format '{{.Names}}' | grep -qx "$MONGO_CONTAINER"; then
-  if [ -d "$SCRIPT_DIR/backend/repo/mongo" ]; then
-    pushd "$SCRIPT_DIR/backend/repo/mongo" >/dev/null || handle_error
-    if $DO_DOWN; then
-      echo "${BLUE}Zastavuji a mažu MongoDB (docker compose down -v)...${RESET}"
-      if docker compose version >/dev/null 2>&1; then
-        docker compose down -v >/dev/null || true
-      else
-        docker-compose down -v >/dev/null || true
-      fi
+if [ -d "$SCRIPT_DIR/backend/repo/mongo" ]; then
+  pushd "$SCRIPT_DIR/backend/repo/mongo" >/dev/null || handle_error
+  if $DO_DOWN; then
+    echo "${BLUE}Zastavuji a mažu MongoDB (docker compose down -v)...${RESET}"
+    if docker compose version >/dev/null 2>&1; then
+      docker compose down -v >/dev/null || true
     else
-      echo "${BLUE}Zastavuji MongoDB (docker compose stop)...${RESET}"
-      if docker compose version >/dev/null 2>&1; then
-        docker compose stop >/dev/null || handle_error
-      else
-        docker-compose stop >/dev/null || handle_error
-      fi
+      docker-compose down -v >/dev/null || true
     fi
-    popd >/dev/null || true
   else
-    echo "${RED}Adresář backend/mongo nebyl nalezen.${RESET}"
+    echo "${BLUE}Zastavuji MongoDB (docker compose stop)...${RESET}"
+    if docker compose version >/dev/null 2>&1; then
+      docker compose stop >/dev/null || handle_error
+    else
+      docker-compose stop >/dev/null || handle_error
+    fi
   fi
+  popd >/dev/null || true
+else
+  echo "${RED}Adresář backend/mongo nebyl nalezen.${RESET}"
+fi
+
+#
+# REDIS
+#
+if [ -d "$SCRIPT_DIR/backend/repo/redis" ]; then
+  pushd "$SCRIPT_DIR/backend/repo/redis" >/dev/null || handle_error
+  if $DO_DOWN; then
+    echo "${BLUE}Zastavuji a mažu Redis (docker compose down -v)...${RESET}"
+    if docker compose version >/dev/null 2>&1; then
+      docker compose down -v >/dev/null || true
+    else
+      docker-compose down -v >/dev/null || true
+    fi
+  else
+    echo "${BLUE}Zastavuji Redis (docker compose stop)...${RESET}"
+    if docker compose version >/dev/null 2>&1; then
+      docker compose stop >/dev/null || handle_error
+    else
+      docker-compose stop >/dev/null || handle_error
+    fi
+  fi
+  popd >/dev/null || true
+else
+  echo "${RED}Adresář backend/redis nebyl nalezen.${RESET}"
 fi
 
 #

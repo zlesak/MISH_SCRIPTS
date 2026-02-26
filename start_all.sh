@@ -152,16 +152,20 @@ echo ""
 #CERTIFIKÁTY
 #
 echo "${BOLD}${GREEN}OPERACE PRO CERTIFIKÁTY${RESET}"
+
+echo "${BOLD}${BLUE}Odstraňuji staré certs-main a keyfile před startem Mongo...${RESET}"
+rm -rf "$SCRIPT_DIR/backend/repo/mongo/certs-main" "$SCRIPT_DIR/backend/repo/mongo/certs-replica-1" "$SCRIPT_DIR/backend/repo/mongo/certs-replica-2" "$SCRIPT_DIR/backend/repo/mongo/keyfile" || true
+echo "${BOLD}${BLUE}Smazání starých souborů dokončeno.${RESET}"
+
+echo "${BOLD}${BLUE}Odstraňuji staré certs-node složky pro Redis...${RESET}"
+rm -rf "$SCRIPT_DIR/backend/repo/redis/certs-node-1" "$SCRIPT_DIR/backend/repo/redis/certs-node-2" "$SCRIPT_DIR/backend/repo/redis/certs-node-3" "$SCRIPT_DIR/backend/repo/redis/certs-node-4" "$SCRIPT_DIR/backend/repo/redis/certs-node-5" "$SCRIPT_DIR/backend/repo/redis/certs-node-6" "$SCRIPT_DIR/backend/repo/redis/certs-node-7" "$SCRIPT_DIR/backend/repo/redis/certs-node-8" "$SCRIPT_DIR/backend/repo/redis/certs-node-9" || true
+echo "${BOLD}${BLUE}Smazání starých redis certs dokončeno.${RESET}"
+
 echo "${BOLD}${BLUE}Generuji CA certifikát...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/script-utils" >/dev/null || handle_error
 bash "./generate-ca.sh" "$MONGO_PASSWORD"
 popd >/dev/null || true
 echo "${BOLD}${GREEN}CA certifikát vygenerován.${RESET}"
-# Odstraň staré certifikáty a keyfile před vytvořením nových pro Mongo
-echo "${BOLD}${BLUE}Odstraňuji staré certs-main a keyfile před startem Mongo...${RESET}"
-rm -rf "$SCRIPT_DIR/backend/repo/mongo/certs-main" "$SCRIPT_DIR/backend/repo/mongo/keyfile" || true
-echo "${BOLD}${BLUE}Smazání starých souborů dokončeno.${RESET}"
-echo ""
 
 #
 #MONGO
