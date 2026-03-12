@@ -233,8 +233,23 @@ fi
 echo "${BOLD}${GREEN}Backend úspěšně sestaven.${RESET}"
 
 echo "${BOLD}${BLUE}Kopíruju backend .jar do build složky pro Docker...${RESET}"
-BACKEND_JAR=$(find "$SCRIPT_DIR/backend/repo/build/libs" -name "*.jar" | head -n 1)
+BACKEND_JAR=$(find "$SCRIPT_DIR/backend/repo/build/libs" -name "*.jar" \
+  ! -name "*-plain.jar" \
+  ! -name "*-sources.jar" \
+  ! -name "*-javadoc.jar" | sort | head -n 1)
+
+if [[ -z "$BACKEND_JAR" ]]; then
+  echo "${RED}Nebyl nalezen spustitelný backend jar!${RESET}"
+  exit 1
+fi
+
 cp "$BACKEND_JAR" "$SCRIPT_DIR/backend/app.jar" || handle_error
+
+echo "${BOLD}${BLUE}Kontroluji manifest backend jaru...${RESET}"
+unzip -p "$SCRIPT_DIR/backend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
+  echo "${RED}Backend app.jar není spustitelný jar!${RESET}"
+  exit 1
+}
 popd >/dev/null || true
 
 echo "${BOLD}${BLUE}Buildím Docker image pro backend...${RESET}"
@@ -267,8 +282,23 @@ if $RUN_FRONTEND; then
     bash ./mvnw clean package -DskipTests -Pproduction || handle_error
 
     echo "${BOLD}${BLUE}Kopíruju frontend .jar do build složky pro Docker...${RESET}"
-    FRONTEND_JAR=$(find "$SCRIPT_DIR/frontend/repo/target" -name "*.jar" | head -n 1)
+    FRONTEND_JAR=$(find "$SCRIPT_DIR/frontend/repo/target" -name "*.jar" \
+      ! -name "*-sources.jar" \
+      ! -name "*-javadoc.jar" \
+      ! -name "*-plain.jar" | sort | head -n 1)
+
+    if [[ -z "$FRONTEND_JAR" ]]; then
+      echo "${RED}Nebyl nalezen spustitelný frontend jar!${RESET}"
+      exit 1
+    fi
+
     cp "$FRONTEND_JAR" "$SCRIPT_DIR/frontend/app.jar" || handle_error
+
+    echo "${BOLD}${BLUE}Kontroluji manifest frontend jaru...${RESET}"
+    unzip -p "$SCRIPT_DIR/frontend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
+      echo "${RED}Frontend app.jar není spustitelný jar!${RESET}"
+      exit 1
+    }
     popd >/dev/null || true
 
     echo "${BOLD}${BLUE}Buildím Docker image pro frontend...${RESET}"
