@@ -7,5 +7,5 @@ RUN apt-get update && apt-get install -y curl
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
-HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 \
   CMD pgrep -f "Started MishApplicationKt" > /dev/null || exit 1
