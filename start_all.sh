@@ -163,7 +163,11 @@ echo "${BOLD}${BLUE}Smazání starých redis certs dokončeno.${RESET}"
 
 echo "${BOLD}${BLUE}Generuji CA certifikát...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/script-utils" >/dev/null || handle_error
-bash "./generate-ca.sh" "$MONGO_PASSWORD"
+if [[ -f "$SCRIPT_DIR/backend/repo/authoritive/ca.pem" && -f "$SCRIPT_DIR/backend/repo/authoritive/ca.key" ]]; then
+  echo "${BLUE}CA certifikát již existuje, přeskakuji generování.${RESET}"
+else
+  bash "./generate-ca.sh" "$MONGO_PASSWORD"
+fi
 popd >/dev/null || true
 echo "${BOLD}${GREEN}CA certifikát vygenerován.${RESET}"
 
@@ -257,34 +261,9 @@ if docker image inspect "$BACKEND_CONTAINER" >/dev/null 2>&1 && image_matches_fi
 fi
 
 if [[ "$NEEDS_BACKEND_BUILD" == "true" ]]; then
-  echo "${BOLD}${BLUE}Buildím backend pomocí Gradle...${RESET}"
-  pushd "$SCRIPT_DIR/backend/repo" >/dev/null || handle_error
-  ./gradlew bootJar -x test || handle_error
-  echo "${BOLD}${GREEN}Backend úspěšně sestaven.${RESET}"
-
-  echo "${BOLD}${BLUE}Kopíruju backend .jar do build složky pro Docker...${RESET}"
-  BACKEND_JAR=$(find "$SCRIPT_DIR/backend/repo/build/libs" -name "*.jar" \
-    ! -name "*-plain.jar" \
-    ! -name "*-sources.jar" \
-    ! -name "*-javadoc.jar" | sort | head -n 1)
-
-  if [[ -z "$BACKEND_JAR" ]]; then
-    echo "${RED}Nebyl nalezen spustitelný backend jar!${RESET}"
-    exit 1
-  fi
-
-  cp "$BACKEND_JAR" "$SCRIPT_DIR/backend/app.jar" || handle_error
-
-  echo "${BOLD}${BLUE}Kontroluji manifest backend jaru...${RESET}"
-  unzip -p "$SCRIPT_DIR/backend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
-    echo "${RED}Backend app.jar není spustitelný jar!${RESET}"
-    exit 1
-  }
-  popd >/dev/null || true
-
-  echo "${BOLD}${BLUE}Buildím Docker image pro backend...${RESET}"
+  echo "${BOLD}${BLUE}Buildím Docker image pro backend (build probíhá uvnitř Dockerfile)...${RESET}"
   pushd "$SCRIPT_DIR/backend" >/dev/null || handle_error
-  IMAGE_FINGERPRINT="$BACKEND_FINGERPRINT" bash ./build_backend.sh "${MONGO_PASSWORD:-adminpassword}" || handle_error
+  IMAGE_FINGERPRINT="$BACKEND_FINGERPRINT" bash ./build_backend.sh || handle_error
   popd >/dev/null || true
 else
   echo "${BOLD}${BLUE}Backend image je aktuální ($BACKEND_FINGERPRINT), přeskakuji build...${RESET}"
@@ -316,39 +295,13 @@ if $RUN_FRONTEND; then
       NEEDS_FRONTEND_BUILD=false
     fi
 
-    pushd "$SCRIPT_DIR/frontend/repo" >/dev/null || handle_error
     if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
-      echo "${BOLD}${BLUE}Buildím frontend...${RESET}"
-      bash ./mvnw clean package -DskipTests -Pproduction || handle_error
-
-      echo "${BOLD}${BLUE}Kopíruju frontend .jar do build složky pro Docker...${RESET}"
-      FRONTEND_JAR=$(find "$SCRIPT_DIR/frontend/repo/target" -name "*.jar" \
-        ! -name "*-sources.jar" \
-        ! -name "*-javadoc.jar" \
-        ! -name "*-plain.jar" | sort | head -n 1)
-
-      if [[ -z "$FRONTEND_JAR" ]]; then
-        echo "${RED}Nebyl nalezen spustitelný frontend jar!${RESET}"
-        exit 1
-      fi
-
-      cp "$FRONTEND_JAR" "$SCRIPT_DIR/frontend/app.jar" || handle_error
-
-      echo "${BOLD}${BLUE}Kontroluji manifest frontend jaru...${RESET}"
-      unzip -p "$SCRIPT_DIR/frontend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
-        echo "${RED}Frontend app.jar není spustitelný jar!${RESET}"
-        exit 1
-      }
-    else
-      echo "${BOLD}${BLUE}Frontend image je aktuální ($FRONTEND_FINGERPRINT), přeskakuji build...${RESET}"
-    fi
-    popd >/dev/null || true
-
-    if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
-      echo "${BOLD}${BLUE}Buildím Docker image pro frontend...${RESET}"
+      echo "${BOLD}${BLUE}Buildím Docker image pro frontend (build probíhá uvnitř Dockerfile)...${RESET}"
       pushd "$SCRIPT_DIR/frontend" >/dev/null || handle_error
       IMAGE_FINGERPRINT="$FRONTEND_FINGERPRINT" bash ./build_frontend.sh || handle_error
       popd >/dev/null || true
+    else
+      echo "${BOLD}${BLUE}Frontend image je aktuální ($FRONTEND_FINGERPRINT), přeskakuji build...${RESET}"
     fi
 
     echo "${BOLD}${BLUE}Spouštím frontend kontejner...${RESET}"
