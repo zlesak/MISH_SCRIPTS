@@ -152,24 +152,16 @@ echo ""
 #CERTIFIKÁTY
 #
 echo "${BOLD}${GREEN}OPERACE PRO CERTIFIKÁTY${RESET}"
-
-echo "${BOLD}${BLUE}Odstraňuji staré certs-main a keyfile před startem Mongo...${RESET}"
-rm -rf "$SCRIPT_DIR/backend/repo/mongo/certs-main" "$SCRIPT_DIR/backend/repo/mongo/certs-replica-1" "$SCRIPT_DIR/backend/repo/mongo/certs-replica-2" "$SCRIPT_DIR/backend/repo/mongo/keyfile" || true
-echo "${BOLD}${BLUE}Smazání starých souborů dokončeno.${RESET}"
-
-echo "${BOLD}${BLUE}Odstraňuji staré certs-node složky pro Redis...${RESET}"
-rm -rf "$SCRIPT_DIR/backend/repo/redis/certs-node-1" "$SCRIPT_DIR/backend/repo/redis/certs-node-2" "$SCRIPT_DIR/backend/repo/redis/certs-node-3" "$SCRIPT_DIR/backend/repo/redis/certs-node-4" "$SCRIPT_DIR/backend/repo/redis/certs-node-5" "$SCRIPT_DIR/backend/repo/redis/certs-node-6" "$SCRIPT_DIR/backend/repo/redis/certs-node-7" "$SCRIPT_DIR/backend/repo/redis/certs-node-8" "$SCRIPT_DIR/backend/repo/redis/certs-node-9" || true
-echo "${BOLD}${BLUE}Smazání starých redis certs dokončeno.${RESET}"
-
 echo "${BOLD}${BLUE}Generuji CA certifikát...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/script-utils" >/dev/null || handle_error
-if [[ -f "$SCRIPT_DIR/backend/repo/authoritive/ca.pem" && -f "$SCRIPT_DIR/backend/repo/authoritive/ca.key" ]]; then
-  echo "${BLUE}CA certifikát již existuje, přeskakuji generování.${RESET}"
-else
-  bash "./generate-ca.sh" "$MONGO_PASSWORD"
-fi
+bash "./generate-ca.sh" "$MONGO_PASSWORD"
 popd >/dev/null || true
 echo "${BOLD}${GREEN}CA certifikát vygenerován.${RESET}"
+# Odstraň staré certifikáty a keyfile před vytvořením nových pro Mongo
+echo "${BOLD}${BLUE}Odstraňuji staré certs-main a keyfile před startem Mongo...${RESET}"
+rm -rf "$SCRIPT_DIR/backend/repo/mongo/certs-main" "$SCRIPT_DIR/backend/repo/mongo/keyfile" || true
+echo "${BOLD}${BLUE}Smazání starých souborů dokončeno.${RESET}"
+echo ""
 
 #
 #MONGO
@@ -181,29 +173,10 @@ bash "./generate-all-mongo-certs.sh"
 popd >/dev/null || true
 echo "${BOLD}${BLUE}Spouštím MongoDB...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/mongo" >/dev/null || handle_error
-MONGO_CONF_OVERRIDE="$SCRIPT_DIR/mongo/mongod.conf"
-if [[ -f "$MONGO_CONF_OVERRIDE" ]]; then
-  cp "$MONGO_CONF_OVERRIDE" "$SCRIPT_DIR/backend/repo/mongo/conf/mongod.conf"
-fi
-
-# Generate keyfile (replica set auth) – do not rely on backend repo helper that hardcodes network name.
-bash "$SCRIPT_DIR/backend/repo/mongo/scripts/generate-keyfile.sh" "$SCRIPT_DIR/backend/repo/mongo/keyfile" || handle_error
-
-MONGO_COMPOSE_OVERRIDE="$SCRIPT_DIR/overrides/mongo/docker-compose.override.yml"
-if [[ -f "$MONGO_COMPOSE_OVERRIDE" ]]; then
-  compose -f docker-compose.yml -f "$MONGO_COMPOSE_OVERRIDE" down -v >/dev/null 2>&1 || true
-  compose -f docker-compose.yml -f "$MONGO_COMPOSE_OVERRIDE" up -d || handle_error
-else
-  compose -f docker-compose.yml down -v >/dev/null 2>&1 || true
-  compose -f docker-compose.yml up -d || handle_error
+if ! bash "./scripts/start-mongo.sh" "$MONGO_PASSWORD"; then
+  handle_error
 fi
 popd >/dev/null || true
-
-# Preflight: BE musí umět resolvnout mongo-* jména přes Docker DNS (stejná síť).
-wait_container_on_network "mongo-main" "$NETWORK_NAME" 60 || handle_error
-wait_container_on_network "mongo-replica-1" "$NETWORK_NAME" 60 || handle_error
-wait_container_on_network "mongo-replica-2" "$NETWORK_NAME" 60 || handle_error
-
 echo "${BOLD}${GREEN}MongoDB spuštěno.${RESET}"
 echo "${BOLD}${GREEN}OPERACE PRO MONGO DOKONČENY${RESET}"
 echo ""
@@ -218,11 +191,8 @@ bash "./generate-all-redis-certs.sh"
 popd >/dev/null || true
 echo "${BOLD}${BLUE}Spouštím Redis...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/redis" >/dev/null || handle_error
-REDIS_COMPOSE_OVERRIDE="$SCRIPT_DIR/overrides/redis/docker-compose.override.yml"
-if [[ -f "$REDIS_COMPOSE_OVERRIDE" ]]; then
-  compose -f docker-compose.yaml -f "$REDIS_COMPOSE_OVERRIDE" up -d || handle_error
-else
-  compose up -d || handle_error
+if ! bash "./scripts/startup.sh"; then
+  handle_error
 fi
 popd >/dev/null || true
 echo "${BOLD}${GREEN}Redis spuštěn.${RESET}"
@@ -234,11 +204,8 @@ echo ""
 echo "${BOLD}${GREEN}OPERACE PRO SECURITY${RESET}"
 echo "${BOLD}${BLUE}Spouštím Security...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/mocked-auth-providers" >/dev/null || handle_error
-KEYCLOAK_OVERRIDE="$SCRIPT_DIR/overrides/mocked-auth-providers/docker-compose.override.yaml"
-if [[ -f "$KEYCLOAK_OVERRIDE" ]]; then
-  compose -f docker-compose.yaml -f "$KEYCLOAK_OVERRIDE" up -d || handle_error
-else
-  compose up -d || handle_error
+if ! compose up -d; then
+  handle_error
 fi
 popd >/dev/null || true
 echo "${BOLD}${GREEN}Security spuštěno.${RESET}"
@@ -254,19 +221,22 @@ echo "${BOLD}${BLUE}KOPÍRUJI ca.pem CERTIFIKÁT${RESET}"
 rm -f "$SCRIPT_DIR/backend/ca.pem"
 cp "$SCRIPT_DIR/backend/repo/mongo/certs-main/ca.pem" "$SCRIPT_DIR/backend"
 
-BACKEND_FINGERPRINT="$(get_repo_fingerprint "$SCRIPT_DIR/backend/repo")"
-NEEDS_BACKEND_BUILD=true
-if docker image inspect "$BACKEND_CONTAINER" >/dev/null 2>&1 && image_matches_fingerprint "$BACKEND_CONTAINER" "$BACKEND_FINGERPRINT"; then
-  NEEDS_BACKEND_BUILD=false
-fi
+HASH_FILE="$SCRIPT_DIR/backend/.last_build_hash"
+CURRENT_HASH="$(get_src_hash "$SCRIPT_DIR/backend/repo")"
+LAST_HASH=""
+[[ -f "$HASH_FILE" ]] && LAST_HASH="$(cat "$HASH_FILE")"
 
-if [[ "$NEEDS_BACKEND_BUILD" == "true" ]]; then
+if [[ "$CURRENT_HASH" != "$LAST_HASH" ]] || ! docker image inspect "$BACKEND_CONTAINER" >/dev/null 2>&1; then
   echo "${BOLD}${BLUE}Buildím Docker image pro backend (build probíhá uvnitř Dockerfile)...${RESET}"
   pushd "$SCRIPT_DIR/backend" >/dev/null || handle_error
-  IMAGE_FINGERPRINT="$BACKEND_FINGERPRINT" bash ./build_backend.sh || handle_error
+  if IMAGE_FINGERPRINT="$CURRENT_HASH" bash ./build_backend.sh "${MONGO_PASSWORD:-adminpassword}"; then
+    echo "$CURRENT_HASH" > "$HASH_FILE"
+  else
+    handle_error
+  fi
   popd >/dev/null || true
 else
-  echo "${BOLD}${BLUE}Backend image je aktuální ($BACKEND_FINGERPRINT), přeskakuji build...${RESET}"
+  echo "${BOLD}${BLUE}Backend source nezměněn, přeskakuji build...${RESET}"
 fi
 
 echo "${BOLD}${BLUE}Odstraňuji tmp ca.pem...${RESET}"
@@ -289,19 +259,22 @@ echo ""
 if $RUN_FRONTEND; then
   echo "${BOLD}${GREEN}OPERACE PRO FRONTEND${RESET}"
   if [ -d "$SCRIPT_DIR/frontend/repo" ]; then
-    FRONTEND_FINGERPRINT="$(get_repo_fingerprint "$SCRIPT_DIR/frontend/repo")"
-    NEEDS_FRONTEND_BUILD=true
-    if docker image inspect "$FRONTEND_CONTAINER" >/dev/null 2>&1 && image_matches_fingerprint "$FRONTEND_CONTAINER" "$FRONTEND_FINGERPRINT"; then
-      NEEDS_FRONTEND_BUILD=false
-    fi
+    HASH_FILE="$SCRIPT_DIR/frontend/.last_build_hash"
+    CURRENT_HASH="$(get_src_hash "$SCRIPT_DIR/frontend/repo")"
+    LAST_HASH=""
+    [[ -f "$HASH_FILE" ]] && LAST_HASH="$(cat "$HASH_FILE")"
 
-    if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
+    if [[ "$CURRENT_HASH" != "$LAST_HASH" ]] || ! docker image inspect "$FRONTEND_CONTAINER" >/dev/null 2>&1; then
       echo "${BOLD}${BLUE}Buildím Docker image pro frontend (build probíhá uvnitř Dockerfile)...${RESET}"
       pushd "$SCRIPT_DIR/frontend" >/dev/null || handle_error
-      IMAGE_FINGERPRINT="$FRONTEND_FINGERPRINT" bash ./build_frontend.sh || handle_error
+      if IMAGE_FINGERPRINT="$CURRENT_HASH" bash ./build_frontend.sh; then
+        echo "$CURRENT_HASH" > "$HASH_FILE"
+      else
+        handle_error
+      fi
       popd >/dev/null || true
     else
-      echo "${BOLD}${BLUE}Frontend image je aktuální ($FRONTEND_FINGERPRINT), přeskakuji build...${RESET}"
+      echo "${BOLD}${BLUE}Frontend source nezměněn, přeskakuji build...${RESET}"
     fi
 
     echo "${BOLD}${BLUE}Spouštím frontend kontejner...${RESET}"

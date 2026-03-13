@@ -1,4 +1,0 @@
-networks:
-  mish_net:
-    external: true
-    name: ${NETWORK_NAME:-mish_net}
