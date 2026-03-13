@@ -177,10 +177,29 @@ bash "./generate-all-mongo-certs.sh"
 popd >/dev/null || true
 echo "${BOLD}${BLUE}Spouštím MongoDB...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/mongo" >/dev/null || handle_error
-if ! bash "./scripts/start-mongo.sh" "$MONGO_PASSWORD"; then
-  handle_error
+MONGO_CONF_OVERRIDE="$SCRIPT_DIR/mongo/mongod.conf"
+if [[ -f "$MONGO_CONF_OVERRIDE" ]]; then
+  cp "$MONGO_CONF_OVERRIDE" "$SCRIPT_DIR/backend/repo/mongo/conf/mongod.conf"
+fi
+
+# Generate keyfile (replica set auth) – do not rely on backend repo helper that hardcodes network name.
+bash "$SCRIPT_DIR/backend/repo/mongo/scripts/generate-keyfile.sh" "$SCRIPT_DIR/backend/repo/mongo/keyfile" || handle_error
+
+MONGO_COMPOSE_OVERRIDE="$SCRIPT_DIR/overrides/mongo/docker-compose.override.yml"
+if [[ -f "$MONGO_COMPOSE_OVERRIDE" ]]; then
+  compose -f docker-compose.yml -f "$MONGO_COMPOSE_OVERRIDE" down -v >/dev/null 2>&1 || true
+  compose -f docker-compose.yml -f "$MONGO_COMPOSE_OVERRIDE" up -d || handle_error
+else
+  compose -f docker-compose.yml down -v >/dev/null 2>&1 || true
+  compose -f docker-compose.yml up -d || handle_error
 fi
 popd >/dev/null || true
+
+# Preflight: BE musí umět resolvnout mongo-* jména přes Docker DNS (stejná síť).
+wait_container_on_network "mongo-main" "$NETWORK_NAME" 60 || handle_error
+wait_container_on_network "mongo-replica-1" "$NETWORK_NAME" 60 || handle_error
+wait_container_on_network "mongo-replica-2" "$NETWORK_NAME" 60 || handle_error
+
 echo "${BOLD}${GREEN}MongoDB spuštěno.${RESET}"
 echo "${BOLD}${GREEN}OPERACE PRO MONGO DOKONČENY${RESET}"
 echo ""
@@ -195,8 +214,11 @@ bash "./generate-all-redis-certs.sh"
 popd >/dev/null || true
 echo "${BOLD}${BLUE}Spouštím Redis...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/redis" >/dev/null || handle_error
-if ! bash "./scripts/startup.sh"; then
-  handle_error
+REDIS_COMPOSE_OVERRIDE="$SCRIPT_DIR/overrides/redis/docker-compose.override.yml"
+if [[ -f "$REDIS_COMPOSE_OVERRIDE" ]]; then
+  compose -f docker-compose.yaml -f "$REDIS_COMPOSE_OVERRIDE" up -d || handle_error
+else
+  compose up -d || handle_error
 fi
 popd >/dev/null || true
 echo "${BOLD}${GREEN}Redis spuštěn.${RESET}"
@@ -208,8 +230,11 @@ echo ""
 echo "${BOLD}${GREEN}OPERACE PRO SECURITY${RESET}"
 echo "${BOLD}${BLUE}Spouštím Security...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/mocked-auth-providers" >/dev/null || handle_error
-if ! compose up -d; then
-  handle_error
+KEYCLOAK_OVERRIDE="$SCRIPT_DIR/overrides/mocked-auth-providers/docker-compose.override.yaml"
+if [[ -f "$KEYCLOAK_OVERRIDE" ]]; then
+  compose -f docker-compose.yaml -f "$KEYCLOAK_OVERRIDE" up -d || handle_error
+else
+  compose up -d || handle_error
 fi
 popd >/dev/null || true
 echo "${BOLD}${GREEN}Security spuštěno.${RESET}"
@@ -225,37 +250,45 @@ echo "${BOLD}${BLUE}KOPÍRUJI ca.pem CERTIFIKÁT${RESET}"
 rm -f "$SCRIPT_DIR/backend/ca.pem"
 cp "$SCRIPT_DIR/backend/repo/mongo/certs-main/ca.pem" "$SCRIPT_DIR/backend"
 
-echo "${BOLD}${BLUE}Buildím backend pomocí Gradle...${RESET}"
-pushd "$SCRIPT_DIR/backend/repo" >/dev/null || handle_error
-if ! ./gradlew bootJar -x test; then
-  handle_error
-fi
-echo "${BOLD}${GREEN}Backend úspěšně sestaven.${RESET}"
-
-echo "${BOLD}${BLUE}Kopíruju backend .jar do build složky pro Docker...${RESET}"
-BACKEND_JAR=$(find "$SCRIPT_DIR/backend/repo/build/libs" -name "*.jar" \
-  ! -name "*-plain.jar" \
-  ! -name "*-sources.jar" \
-  ! -name "*-javadoc.jar" | sort | head -n 1)
-
-if [[ -z "$BACKEND_JAR" ]]; then
-  echo "${RED}Nebyl nalezen spustitelný backend jar!${RESET}"
-  exit 1
+BACKEND_FINGERPRINT="$(get_repo_fingerprint "$SCRIPT_DIR/backend/repo")"
+NEEDS_BACKEND_BUILD=true
+if docker image inspect "$BACKEND_CONTAINER" >/dev/null 2>&1 && image_matches_fingerprint "$BACKEND_CONTAINER" "$BACKEND_FINGERPRINT"; then
+  NEEDS_BACKEND_BUILD=false
 fi
 
-cp "$BACKEND_JAR" "$SCRIPT_DIR/backend/app.jar" || handle_error
+if [[ "$NEEDS_BACKEND_BUILD" == "true" ]]; then
+  echo "${BOLD}${BLUE}Buildím backend pomocí Gradle...${RESET}"
+  pushd "$SCRIPT_DIR/backend/repo" >/dev/null || handle_error
+  ./gradlew bootJar -x test || handle_error
+  echo "${BOLD}${GREEN}Backend úspěšně sestaven.${RESET}"
 
-echo "${BOLD}${BLUE}Kontroluji manifest backend jaru...${RESET}"
-unzip -p "$SCRIPT_DIR/backend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
-  echo "${RED}Backend app.jar není spustitelný jar!${RESET}"
-  exit 1
-}
-popd >/dev/null || true
+  echo "${BOLD}${BLUE}Kopíruju backend .jar do build složky pro Docker...${RESET}"
+  BACKEND_JAR=$(find "$SCRIPT_DIR/backend/repo/build/libs" -name "*.jar" \
+    ! -name "*-plain.jar" \
+    ! -name "*-sources.jar" \
+    ! -name "*-javadoc.jar" | sort | head -n 1)
 
-echo "${BOLD}${BLUE}Buildím Docker image pro backend...${RESET}"
-pushd "$SCRIPT_DIR/backend" >/dev/null || handle_error
-bash ./build_backend.sh "${MONGO_PASSWORD:-adminpassword}" || handle_error
-popd >/dev/null || true
+  if [[ -z "$BACKEND_JAR" ]]; then
+    echo "${RED}Nebyl nalezen spustitelný backend jar!${RESET}"
+    exit 1
+  fi
+
+  cp "$BACKEND_JAR" "$SCRIPT_DIR/backend/app.jar" || handle_error
+
+  echo "${BOLD}${BLUE}Kontroluji manifest backend jaru...${RESET}"
+  unzip -p "$SCRIPT_DIR/backend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
+    echo "${RED}Backend app.jar není spustitelný jar!${RESET}"
+    exit 1
+  }
+  popd >/dev/null || true
+
+  echo "${BOLD}${BLUE}Buildím Docker image pro backend...${RESET}"
+  pushd "$SCRIPT_DIR/backend" >/dev/null || handle_error
+  IMAGE_FINGERPRINT="$BACKEND_FINGERPRINT" bash ./build_backend.sh "${MONGO_PASSWORD:-adminpassword}" || handle_error
+  popd >/dev/null || true
+else
+  echo "${BOLD}${BLUE}Backend image je aktuální ($BACKEND_FINGERPRINT), přeskakuji build...${RESET}"
+fi
 
 echo "${BOLD}${BLUE}Odstraňuji tmp ca.pem...${RESET}"
 rm -f "$SCRIPT_DIR/backend/ca.pem"
@@ -277,34 +310,46 @@ echo ""
 if $RUN_FRONTEND; then
   echo "${BOLD}${GREEN}OPERACE PRO FRONTEND${RESET}"
   if [ -d "$SCRIPT_DIR/frontend/repo" ]; then
-    pushd "$SCRIPT_DIR/frontend/repo" >/dev/null || handle_error
-    echo "${BOLD}${BLUE}Buildím frontend...${RESET}"
-    bash ./mvnw clean package -DskipTests -Pproduction || handle_error
-
-    echo "${BOLD}${BLUE}Kopíruju frontend .jar do build složky pro Docker...${RESET}"
-    FRONTEND_JAR=$(find "$SCRIPT_DIR/frontend/repo/target" -name "*.jar" \
-      ! -name "*-sources.jar" \
-      ! -name "*-javadoc.jar" \
-      ! -name "*-plain.jar" | sort | head -n 1)
-
-    if [[ -z "$FRONTEND_JAR" ]]; then
-      echo "${RED}Nebyl nalezen spustitelný frontend jar!${RESET}"
-      exit 1
+    FRONTEND_FINGERPRINT="$(get_repo_fingerprint "$SCRIPT_DIR/frontend/repo")"
+    NEEDS_FRONTEND_BUILD=true
+    if docker image inspect "$FRONTEND_CONTAINER" >/dev/null 2>&1 && image_matches_fingerprint "$FRONTEND_CONTAINER" "$FRONTEND_FINGERPRINT"; then
+      NEEDS_FRONTEND_BUILD=false
     fi
 
-    cp "$FRONTEND_JAR" "$SCRIPT_DIR/frontend/app.jar" || handle_error
+    pushd "$SCRIPT_DIR/frontend/repo" >/dev/null || handle_error
+    if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
+      echo "${BOLD}${BLUE}Buildím frontend...${RESET}"
+      bash ./mvnw clean package -DskipTests -Pproduction || handle_error
 
-    echo "${BOLD}${BLUE}Kontroluji manifest frontend jaru...${RESET}"
-    unzip -p "$SCRIPT_DIR/frontend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
-      echo "${RED}Frontend app.jar není spustitelný jar!${RESET}"
-      exit 1
-    }
+      echo "${BOLD}${BLUE}Kopíruju frontend .jar do build složky pro Docker...${RESET}"
+      FRONTEND_JAR=$(find "$SCRIPT_DIR/frontend/repo/target" -name "*.jar" \
+        ! -name "*-sources.jar" \
+        ! -name "*-javadoc.jar" \
+        ! -name "*-plain.jar" | sort | head -n 1)
+
+      if [[ -z "$FRONTEND_JAR" ]]; then
+        echo "${RED}Nebyl nalezen spustitelný frontend jar!${RESET}"
+        exit 1
+      fi
+
+      cp "$FRONTEND_JAR" "$SCRIPT_DIR/frontend/app.jar" || handle_error
+
+      echo "${BOLD}${BLUE}Kontroluji manifest frontend jaru...${RESET}"
+      unzip -p "$SCRIPT_DIR/frontend/app.jar" META-INF/MANIFEST.MF | grep -E "Main-Class|Start-Class" || {
+        echo "${RED}Frontend app.jar není spustitelný jar!${RESET}"
+        exit 1
+      }
+    else
+      echo "${BOLD}${BLUE}Frontend image je aktuální ($FRONTEND_FINGERPRINT), přeskakuji build...${RESET}"
+    fi
     popd >/dev/null || true
 
-    echo "${BOLD}${BLUE}Buildím Docker image pro frontend...${RESET}"
-    pushd "$SCRIPT_DIR/frontend" >/dev/null || handle_error
-    bash ./build_frontend.sh || handle_error
-    popd >/dev/null || true
+    if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
+      echo "${BOLD}${BLUE}Buildím Docker image pro frontend...${RESET}"
+      pushd "$SCRIPT_DIR/frontend" >/dev/null || handle_error
+      IMAGE_FINGERPRINT="$FRONTEND_FINGERPRINT" bash ./build_frontend.sh || handle_error
+      popd >/dev/null || true
+    fi
 
     echo "${BOLD}${BLUE}Spouštím frontend kontejner...${RESET}"
     docker run -d \
@@ -357,4 +402,3 @@ echo "${BOLD}${BLUE}Aplikace:${RESET}   ${FE_URL:-"http://localhost:80"}"
 if ! $RUN_FRONTEND; then
   echo "${BOLD}${BLUE}Frontend:${RESET} SPUSTIT RUČNĚ NA PORTU 8081! Nelze využívat nginx gateway."
 fi
-

@@ -65,26 +65,40 @@ fi
 
 echo "${BOLD}${GREEN}FRONTEND ONLY DEPLOY${RESET}"
 
-if [[ "$SKIP_MAVEN" != true ]]; then
-  echo "${BOLD}${BLUE}Buildim frontend (mvnw clean package -DskipTests -Pproduction)...${RESET}"
-  pushd "$SCRIPT_DIR/frontend/repo" >/dev/null
-  bash ./mvnw clean package -DskipTests -Pproduction
-  popd >/dev/null
+FRONTEND_FINGERPRINT="$(get_repo_fingerprint "$SCRIPT_DIR/frontend/repo")"
+NEEDS_FRONTEND_BUILD=true
+if docker image inspect "$FRONTEND_CONTAINER" >/dev/null 2>&1 && image_matches_fingerprint "$FRONTEND_CONTAINER" "$FRONTEND_FINGERPRINT"; then
+  NEEDS_FRONTEND_BUILD=false
+fi
+
+if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
+  if [[ "$SKIP_MAVEN" != true ]]; then
+    echo "${BOLD}${BLUE}Buildim frontend (mvnw clean package -DskipTests -Pproduction)...${RESET}"
+    pushd "$SCRIPT_DIR/frontend/repo" >/dev/null
+    bash ./mvnw clean package -DskipTests -Pproduction
+    popd >/dev/null
+  else
+    echo "${BLUE}Preskakuji Maven build (--skip-maven).${RESET}"
+  fi
 else
-  echo "${BLUE}Preskakuji Maven build (--skip-maven).${RESET}"
+  echo "${BOLD}${BLUE}Frontend image je aktuální ($FRONTEND_FINGERPRINT), přeskakuji build...${RESET}"
 fi
 
-FRONTEND_JAR=$(ls -t "$SCRIPT_DIR"/frontend/repo/target/*.jar 2>/dev/null | grep -v -- '/original-' | head -n 1 || true)
-if [[ -z "${FRONTEND_JAR:-}" ]]; then
-  echo "Nenasel jsem frontend jar v $SCRIPT_DIR/frontend/repo/target"
-  exit 1
-fi
+if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
+  FRONTEND_JAR=$(ls -t "$SCRIPT_DIR"/frontend/repo/target/*.jar 2>/dev/null | grep -v -- '/original-' | head -n 1 || true)
+  if [[ -z "${FRONTEND_JAR:-}" ]]; then
+    echo "Nenasel jsem frontend jar v $SCRIPT_DIR/frontend/repo/target"
+    exit 1
+  fi
 
-cp "$FRONTEND_JAR" "$SCRIPT_DIR/frontend/app.jar"
+  cp "$FRONTEND_JAR" "$SCRIPT_DIR/frontend/app.jar"
+fi
 
 echo "${BOLD}${BLUE}Buildim Docker image frontendu...${RESET}"
 pushd "$SCRIPT_DIR/frontend" >/dev/null
-bash ./build_frontend.sh
+if [[ "$NEEDS_FRONTEND_BUILD" == "true" ]]; then
+  IMAGE_FINGERPRINT="$FRONTEND_FINGERPRINT" bash ./build_frontend.sh
+fi
 popd >/dev/null
 
 echo "${BOLD}${BLUE}Restartuji pouze frontend kontejner...${RESET}"

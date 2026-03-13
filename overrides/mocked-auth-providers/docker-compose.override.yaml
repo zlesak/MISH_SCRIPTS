@@ -1,0 +1,10 @@
+services:
+  mock-oidc:
+    environment:
+      KC_PROXY_HEADERS: xforwarded
+      KC_LOG_LEVEL: INFO
+
+networks:
+  mish_net:
+    external: true
+    name: ${NETWORK_NAME:-mish_net}

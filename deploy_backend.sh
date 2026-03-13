@@ -65,29 +65,41 @@ fi
 
 echo "${BOLD}${GREEN}BACKEND ONLY DEPLOY${RESET}"
 
-if [[ "$SKIP_GRADLE" != true ]]; then
-  echo "${BOLD}${BLUE}Buildim backend (bootJar -x test)...${RESET}"
-  pushd "$SCRIPT_DIR/backend/repo" >/dev/null
-  ./gradlew bootJar -x test
-  popd >/dev/null
+BACKEND_FINGERPRINT="$(get_repo_fingerprint "$SCRIPT_DIR/backend/repo")"
+NEEDS_BACKEND_BUILD=true
+if docker image inspect "$BACKEND_CONTAINER" >/dev/null 2>&1 && image_matches_fingerprint "$BACKEND_CONTAINER" "$BACKEND_FINGERPRINT"; then
+  NEEDS_BACKEND_BUILD=false
+fi
+
+if [[ "$NEEDS_BACKEND_BUILD" == "true" ]]; then
+  if [[ "$SKIP_GRADLE" != true ]]; then
+    echo "${BOLD}${BLUE}Buildim backend (bootJar -x test)...${RESET}"
+    pushd "$SCRIPT_DIR/backend/repo" >/dev/null
+    ./gradlew bootJar -x test
+    popd >/dev/null
+  else
+    echo "${BLUE}Preskakuji Gradle build (--skip-gradle).${RESET}"
+  fi
 else
-  echo "${BLUE}Preskakuji Gradle build (--skip-gradle).${RESET}"
+  echo "${BOLD}${BLUE}Backend image je aktuální ($BACKEND_FINGERPRINT), přeskakuji build...${RESET}"
 fi
 
-BACKEND_JAR=$(ls -t "$SCRIPT_DIR"/backend/repo/build/libs/*.jar 2>/dev/null | grep -v -- '-plain\.jar$' | head -n 1 || true)
-if [[ -z "${BACKEND_JAR:-}" ]]; then
-  echo "Nenasel jsem backend jar v $SCRIPT_DIR/backend/repo/build/libs"
-  exit 1
-fi
+if [[ "$NEEDS_BACKEND_BUILD" == "true" ]]; then
+  BACKEND_JAR=$(ls -t "$SCRIPT_DIR"/backend/repo/build/libs/*.jar 2>/dev/null | grep -v -- '-plain\.jar$' | head -n 1 || true)
+  if [[ -z "${BACKEND_JAR:-}" ]]; then
+    echo "Nenasel jsem backend jar v $SCRIPT_DIR/backend/repo/build/libs"
+    exit 1
+  fi
 
-cp "$BACKEND_JAR" "$SCRIPT_DIR/backend/app.jar"
+  cp "$BACKEND_JAR" "$SCRIPT_DIR/backend/app.jar"
 
-if [[ -f "$SCRIPT_DIR/backend/repo/mongo/certs-main/ca.pem" ]]; then
-  cp "$SCRIPT_DIR/backend/repo/mongo/certs-main/ca.pem" "$SCRIPT_DIR/backend/ca.pem"
-elif [[ ! -f "$SCRIPT_DIR/backend/ca.pem" ]]; then
-  echo "Chybi ca.pem (nenalezeno ani v backend/repo/mongo/certs-main/ca.pem ani v backend/ca.pem)."
-  echo "Spust nejdriv full start nebo vygeneruj certifikaty."
-  exit 1
+  if [[ -f "$SCRIPT_DIR/backend/repo/mongo/certs-main/ca.pem" ]]; then
+    cp "$SCRIPT_DIR/backend/repo/mongo/certs-main/ca.pem" "$SCRIPT_DIR/backend/ca.pem"
+  elif [[ ! -f "$SCRIPT_DIR/backend/ca.pem" ]]; then
+    echo "Chybi ca.pem (nenalezeno ani v backend/repo/mongo/certs-main/ca.pem ani v backend/ca.pem)."
+    echo "Spust nejdriv full start nebo vygeneruj certifikaty."
+    exit 1
+  fi
 fi
 
 cleanup() {
@@ -97,11 +109,19 @@ trap cleanup EXIT
 
 echo "${BOLD}${BLUE}Buildim Docker image backendu...${RESET}"
 pushd "$SCRIPT_DIR/backend" >/dev/null
-bash ./build_backend.sh "${MONGO_PASSWORD:-adminpassword}"
+if [[ "$NEEDS_BACKEND_BUILD" == "true" ]]; then
+  IMAGE_FINGERPRINT="$BACKEND_FINGERPRINT" bash ./build_backend.sh "${MONGO_PASSWORD:-adminpassword}"
+fi
 popd >/dev/null
 
 echo "${BOLD}${BLUE}Restartuji pouze backend kontejner...${RESET}"
 docker rm -f "$BACKEND_CONTAINER" 2>/dev/null || true
+
+if [[ "${MONGO_HOST:-}" == *"mongo-main"* ]]; then
+  wait_container_on_network "mongo-main" "$NETWORK_NAME" 60 || handle_error
+  wait_container_on_network "mongo-replica-1" "$NETWORK_NAME" 60 || handle_error
+  wait_container_on_network "mongo-replica-2" "$NETWORK_NAME" 60 || handle_error
+fi
 
 docker run -d \
   --env-file "$ENV_FILE" \
