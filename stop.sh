@@ -4,118 +4,104 @@ set -euo pipefail
 source ./common.sh
 
 DO_DOWN=false
-if [[ $# -gt 0 ]]; then
-  if [[ "$1" == "--down" || "$1" == "-d" ]]; then
-    DO_DOWN=true
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --down|-d)
+      DO_DOWN=true
+      shift
+      ;;
+    *)
+      echo "Neznámý argument: $1"
+      echo "Použití: $0 [--down|-d]"
+      exit 1
+      ;;
+  esac
+done
+
+container_exists() {
+  local name="$1"
+  docker ps -a --format '{{.Names}}' | grep -qx "$name"
+}
+
+container_running() {
+  local name="$1"
+  docker ps --format '{{.Names}}' | grep -qx "$name"
+}
+
+stop_or_remove_container() {
+  local name="$1"
+  local label="$2"
+
+  if ! container_exists "$name"; then
+    echo "${BLUE}${label} kontejner neexistuje.${RESET}"
+    return 0
   fi
-fi
+
+  if $DO_DOWN; then
+    echo "${BLUE}Mažu ${label} kontejner...${RESET}"
+    docker rm -f "$name" >/dev/null || true
+    return 0
+  fi
+
+  if container_running "$name"; then
+    echo "${BLUE}Zastavuji ${label}...${RESET}"
+    docker stop "$name" >/dev/null || true
+  else
+    echo "${BLUE}${label} již neběží (kontejner existuje).${RESET}"
+  fi
+}
+
+stop_or_down_compose_stack() {
+  local dir="$1"
+  local label="$2"
+
+  if [[ ! -d "$dir" ]]; then
+    echo "${RED}Adresář ${dir} nebyl nalezen.${RESET}"
+    return 0
+  fi
+
+  pushd "$dir" >/dev/null || handle_error
+  if $DO_DOWN; then
+    echo "${BLUE}Zastavuji a mažu ${label} (docker compose down -v)...${RESET}"
+    compose down -v >/dev/null || true
+  else
+    echo "${BLUE}Zastavuji ${label} (docker compose stop)...${RESET}"
+    compose stop >/dev/null || true
+  fi
+  popd >/dev/null || true
+}
 
 echo "${BOLD}${BLUE}Zastavuji aplikaci...${RESET}"
 
 #
 # GATEWAY
 #
-if docker ps -a --format '{{.Names}}' | grep -qx "$GATEWAY_CONTAINER"; then
-  if $DO_DOWN; then
-    echo "${BLUE}Mažu gateway kontejner...${RESET}"
-    docker rm -f "$GATEWAY_CONTAINER" >/dev/null || true
-  else
-    if docker ps --format '{{.Names}}' | grep -qx "$GATEWAY_CONTAINER"; then
-      echo "${BLUE}Zastavuji gateway...${RESET}"
-      docker stop "$GATEWAY_CONTAINER" >/dev/null || handle_error
-    else
-      echo "${BLUE}Gateway již neběží (kontejner existuje).${RESET}"
-    fi
-  fi
-fi
+stop_or_remove_container "$GATEWAY_CONTAINER" "gateway"
 
 #
 # BACKEND
 #
-if docker ps -a --format '{{.Names}}' | grep -qx "$BACKEND_CONTAINER"; then
-  if $DO_DOWN; then
-    echo "${BLUE}Mažu backend kontejner...${RESET}"
-    docker rm -f "$BACKEND_CONTAINER" >/dev/null || true
-  else
-    if docker ps --format '{{.Names}}' | grep -qx "$BACKEND_CONTAINER"; then
-      echo "${BLUE}Zastavuji backend...${RESET}"
-      docker stop "$BACKEND_CONTAINER" >/dev/null || handle_error
-    else
-      echo "${BLUE}Backend již neběží (kontejner existuje).${RESET}"
-    fi
-  fi
-fi
+stop_or_remove_container "$BACKEND_CONTAINER" "backend"
 
 #
 # FRONTEND
 #
-if docker ps -a --format '{{.Names}}' | grep -qx "$FRONTEND_CONTAINER"; then
-  if $DO_DOWN; then
-    echo "${BLUE}Mažu frontend kontejner...${RESET}"
-    docker rm -f "$FRONTEND_CONTAINER" >/dev/null || true
-  else
-    if docker ps --format '{{.Names}}' | grep -qx "$FRONTEND_CONTAINER"; then
-      echo "${BLUE}Zastavuji frontend...${RESET}"
-      docker stop "$FRONTEND_CONTAINER" >/dev/null || handle_error
-    else
-      echo "${BLUE}Frontend již neběží (kontejner existuje).${RESET}"
-    fi
-  fi
-fi
+stop_or_remove_container "$FRONTEND_CONTAINER" "frontend"
+
+#
+# REDIS
+#
+stop_or_down_compose_stack "$SCRIPT_DIR/backend/repo/redis" "Redis"
 
 #
 # MONGO
 #
-if docker ps -a --format '{{.Names}}' | grep -qx "$MONGO_CONTAINER"; then
-  if [ -d "$SCRIPT_DIR/backend/repo/mongo" ]; then
-    pushd "$SCRIPT_DIR/backend/repo/mongo" >/dev/null || handle_error
-    if $DO_DOWN; then
-      echo "${BLUE}Zastavuji a mažu MongoDB (docker compose down -v)...${RESET}"
-      if docker compose version >/dev/null 2>&1; then
-        docker compose down -v >/dev/null || true
-      else
-        docker-compose down -v >/dev/null || true
-      fi
-    else
-      echo "${BLUE}Zastavuji MongoDB (docker compose stop)...${RESET}"
-      if docker compose version >/dev/null 2>&1; then
-        docker compose stop >/dev/null || handle_error
-      else
-        docker-compose stop >/dev/null || handle_error
-      fi
-    fi
-    popd >/dev/null || true
-  else
-    echo "${RED}Adresář backend/mongo nebyl nalezen.${RESET}"
-  fi
-fi
+stop_or_down_compose_stack "$SCRIPT_DIR/backend/repo/mongo" "MongoDB"
 
 #
 # SECURITY
 #
-if docker ps -a --format '{{.Names}}' | grep -qx "$SECURITY_CONTAINER"; then
-  if [ -d "$SCRIPT_DIR/backend/repo/mocked-auth-providers" ]; then
-    pushd "$SCRIPT_DIR/backend/repo/mocked-auth-providers" >/dev/null || handle_error
-    if $DO_DOWN; then
-      echo "${BLUE}Zastavuji a mažu Security (docker compose down -v)...${RESET}"
-      if docker compose version >/dev/null 2>&1; then
-        docker compose down -v >/dev/null || true
-      else
-        docker-compose down -v >/dev/null || true
-      fi
-    else
-      echo "${BLUE}Zastavuji Security (docker compose stop)...${RESET}"
-      if docker compose version >/dev/null 2>&1; then
-        docker compose stop >/dev/null || handle_error
-      else
-        docker-compose stop >/dev/null || handle_error
-      fi
-    fi
-    popd >/dev/null || true
-  else
-    echo "${RED}Adresář backend/mocked-auth-providers nebyl nalezen.${RESET}"
-  fi
-fi
+stop_or_down_compose_stack "$SCRIPT_DIR/backend/repo/mocked-auth-providers" "Security"
 
 #
 # FINAL

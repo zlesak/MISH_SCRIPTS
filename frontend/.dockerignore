@@ -1,0 +1,20 @@
+# To keeep frontend Docker context small and copy only relevant items
+.git
+.idea
+.vscode
+app.jar
+.last_build_hash
+repo/target
+repo/**/target
+repo/node_modules
+repo/**/node_modules
+repo/.mvn/wrapper/dists
+repo/playwright-report
+repo/test-results
+repo/coverage
+repo/**/coverage
+repo/**/playwright-report
+repo/**/test-results
+repo/**/*.log
+repo/**/tmp
+
