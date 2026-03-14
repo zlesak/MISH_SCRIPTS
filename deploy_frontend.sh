@@ -37,11 +37,6 @@ fi
 
 export $(grep -v '^#' "$ENV_FILE" | xargs)
 
-KEYCLOAK_EFFECTIVE_URL="${KEYCLOAK_URL:-}"
-if [[ -n "${KEYCLOAK_EXTERNAL_URL:-}" ]]; then
-  KEYCLOAK_EFFECTIVE_URL="${KEYCLOAK_EXTERNAL_URL}"
-fi
-
 mkdir -p "$SCRIPT_DIR/frontend/repo"
 
 FRONTEND_GIT_OK=false
@@ -109,7 +104,6 @@ fi
 echo "${BOLD}${BLUE}Spouštím frontend kontejner...${RESET}"
 docker run -d \
   --env-file "$ENV_FILE" \
-  -e KEYCLOAK_URL="${KEYCLOAK_EFFECTIVE_URL}" \
   --name "$FRONTEND_CONTAINER" \
   --restart unless-stopped \
   --network "$NETWORK_NAME" \

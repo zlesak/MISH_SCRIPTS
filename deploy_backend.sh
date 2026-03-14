@@ -71,7 +71,6 @@ rm -f "$SCRIPT_DIR/backend/ca.pem"
 echo "${BOLD}${BLUE}Spouštím backend kontejner...${RESET}"
 docker run -d \
   --env-file "$ENV_FILE" \
-  -e KEYCLOAK_URL="${KEYCLOAK_EFFECTIVE_URL}" \
   --name "$BACKEND_CONTAINER" \
   --restart unless-stopped \
   --network "$NETWORK_NAME" \
@@ -79,4 +78,3 @@ docker run -d \
   "$BACKEND_CONTAINER" || handle_error
 
 echo "${BOLD}${GREEN}Backend deploy dokončen.${RESET}"
-
