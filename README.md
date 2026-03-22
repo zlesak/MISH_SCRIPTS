@@ -11,7 +11,7 @@ MISH_SCRIPTS/<br />
 &emsp;│&emsp;└── build_frontend.sh<br />
 &emsp;├── nginx/<br />
 &emsp;│&emsp;├── nginx.conf<br />
-&emsp;│&emsp;└── nginx-dev.conf<br />
+&emsp;│&emsp;└── ssl/<br />
 &emsp;├── common.sh<br />
 &emsp;├── lib.sh<br />
 &emsp;├── start_all.sh<br />
@@ -41,6 +41,7 @@ To run in production mode (`.env`), use: <br />
 <br />
 To run with development variables (`.dev.env`), use: <br />
 `./start_all.sh --dev` <br />
+Note: `--dev` only switches env variables; gateway still uses unified `nginx/nginx.conf` (HTTPS). <br />
 <br />
 If specific branches are required (production mode): <br />
 `./start_all.sh --branch-backend=<branch_name> --branch-frontend=<branch_name>` <br />
@@ -74,6 +75,5 @@ If you want to stop and remove containers + volumes created by this stack (Redis
 
 **__When scripts change, update this `README.md` accordingly.__**
 ~~~~
-last change: 14.03.2026 by j.zlesak - README rewritten
-last change: 13.03.2026 by j.zlesak - scripts separation for better maintainability and separate calling
+last change: 22.03.2026 by j.zlesak - update environment configuration, enhance nginx setup, ssl addition
 ~~~~

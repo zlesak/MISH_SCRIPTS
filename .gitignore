@@ -6,3 +6,32 @@ backend/app.jar
 frontend/app.jar
 backend/repo/
 frontend/repo/
+
+# Build/test artifacts (Java)
+**/build/
+**/target/
+**/.gradle/
+**/out/
+
+# Test reports and coverage
+**/test-results/
+**/surefire-reports/
+**/failsafe-reports/
+**/reports/tests/
+**/reports/jacoco/
+**/site/jacoco/
+**/coverage/
+**/coverage-*/
+**/.nyc_output/
+
+# Playwright / E2E outputs
+**/playwright-report/
+**/blob-report/
+**/test-results/*
+
+# Logs and temporary index-like files
+**/*.log
+**/*.tmp
+**/*.temp
+**/*.cache
+**/.cache/

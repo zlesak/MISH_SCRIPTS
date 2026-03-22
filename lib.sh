@@ -31,6 +31,31 @@ load_env() {
     export KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-${KEYCLOAK_URL:-}}"
     export KEYCLOAK_ADMIN_URL="${KEYCLOAK_ADMIN_URL:-${KEYCLOAK_URL:-}}"
   fi
+
+  validate_required_env
+}
+
+validate_required_env() {
+  local required_vars=(
+    NETWORK_NAME
+    GATEWAY_ALIAS
+    BACKEND_GIT_URL
+    FRONTEND_GIT_URL
+    MONGO_PASSWORD
+  )
+
+  local missing=()
+  local var_name
+  for var_name in "${required_vars[@]}"; do
+    if [[ -z "${!var_name:-}" ]]; then
+      missing+=("$var_name")
+    fi
+  done
+
+  if (( ${#missing[@]} > 0 )); then
+    echo "${BOLD}${RED}V env souboru ${ENV_FILE:-<unknown>} chybí povinné proměnné: ${missing[*]}${RESET}"
+    return 1
+  fi
 }
 
 ensure_network() {
