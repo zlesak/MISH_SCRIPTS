@@ -30,7 +30,7 @@ Max JDK: JDK 21 (BE compatibility).
 For scripts to work properly, the following repositories are expected (and can be auto-cloned by scripts): <br />
 MISH/<br />
 &emsp;├── backend/repo (https://github.com/Foglas/mishprototype) <br />
-&emsp;├── frontend/repo (https://github.com/zlesak/threejsproofofconcept) <br />
+&emsp;├── frontend/repo (https://github.com/zlesak/mishappfrontend) <br />
 &emsp;└── MISH_SCRIPTS (this repo) <br />
 
 (**Scripts automatically fetch FE/BE repositories into their folders if missing.**)<br />
