@@ -37,7 +37,10 @@ popd >/dev/null || true
 
 echo "${BOLD}${BLUE}Spouštím Redis...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/redis" >/dev/null || handle_error
-bash "./scripts/startup.sh"
+if [[ ! -f .env ]]; then
+  cp dev.env .env
+fi
+bash "./scripts/start-redis.sh"
 popd >/dev/null || true
 
 echo "${BOLD}${GREEN}Redis deploy dokončen.${RESET}"

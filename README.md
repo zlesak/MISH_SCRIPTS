@@ -75,5 +75,5 @@ If you want to stop and remove containers + volumes created by this stack (Redis
 
 **__When scripts change, update this `README.md` accordingly.__**
 ~~~~
-last change: 22.03.2026 by j.zlesak - update environment configuration, enhance nginx setup, ssl addition
+last change: 30.07.2026 by j.zlesak - fresh-clone/CI fixes: tput fallback without TERM, generate mongo/.env and redis/.env when missing, call start-redis.sh (startup.sh no longer exists)
 ~~~~
