@@ -46,6 +46,12 @@ popd >/dev/null || true
 
 echo "${BOLD}${BLUE}Spouštím MongoDB...${RESET}"
 pushd "$SCRIPT_DIR/backend/repo/mongo" >/dev/null || handle_error
+if [[ ! -f .env ]]; then
+  cat > .env <<EOF
+MONGO_ADMIN_USER=admin
+MONGO_ADMIN_PASSWORD=${MONGO_PASSWORD}
+EOF
+fi
 bash "./scripts/start-mongo.sh" "$MONGO_PASSWORD"
 popd >/dev/null || true
 
