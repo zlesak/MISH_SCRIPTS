@@ -52,6 +52,9 @@ Without frontend container (for manual FE hot reload): <br />
 `./start_all.sh --dev --no-frontend` <br />
 Note: when `--no-frontend` is used, nginx cannot proxy FE from container; run FE manually (for example on `http://localhost:8081`). <br />
 
+To run frontend from a prebuilt image instead of building from source (skips clone+build, image must bundle webapp assets): <br />
+`./start_all.sh --dev --image-frontend=ghcr.io/zlesak/mishappfrontend:latest` <br />
+<br />
 Optional repo-only sync helpers: <br />
 `./sync_backend_repo.sh [--dev] [--branch-backend=<branch_name>]` <br />
 `./sync_frontend_repo.sh [--dev] [--branch-frontend=<branch_name>]` <br />
@@ -75,5 +78,5 @@ If you want to stop and remove containers + volumes created by this stack (Redis
 
 **__When scripts change, update this `README.md` accordingly.__**
 ~~~~
-last change: 30.07.2026 by j.zlesak - fresh-clone/CI fixes: tput fallback without TERM, generate mongo/.env and redis/.env when missing, call start-redis.sh (startup.sh no longer exists)
+last change: 30.07.2026 by j.zlesak - add --image-frontend mode: run frontend from a prebuilt registry image (ghcr) instead of building from source
 ~~~~

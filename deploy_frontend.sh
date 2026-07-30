@@ -5,6 +5,7 @@ source ./common.sh
 
 MODE="prod"
 FRONTEND_BRANCH=""
+FRONTEND_IMAGE=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -16,9 +17,13 @@ while [[ $# -gt 0 ]]; do
       FRONTEND_BRANCH="${1#*=}"
       shift
       ;;
+    --image-frontend=*)
+      FRONTEND_IMAGE="${1#*=}"
+      shift
+      ;;
     *)
       echo "Neznámý argument: $1"
-      echo "Použití: $0 [--dev] [--branch-frontend=NAZEV]"
+      echo "Použití: $0 [--dev] [--branch-frontend=NAZEV] [--image-frontend=IMAGE]"
       exit 1
       ;;
   esac
@@ -36,6 +41,33 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 export $(grep -v '^#' "$ENV_FILE" | xargs)
+
+if [[ -n "$FRONTEND_IMAGE" ]]; then
+  if ! docker network ls --format '{{.Name}}' | grep -qx "$NETWORK_NAME"; then
+    echo "${BOLD}${BLUE}Vytvářím síť $NETWORK_NAME...${RESET}"
+    docker network create "$NETWORK_NAME" >/dev/null
+  fi
+
+  echo "${BOLD}${BLUE}Stahuji frontend image $FRONTEND_IMAGE...${RESET}"
+  docker pull "$FRONTEND_IMAGE" || handle_error
+
+  echo "${BOLD}${BLUE}Zastavuji starý frontend kontejner (pokud existuje)...${RESET}"
+  docker rm -f "$FRONTEND_CONTAINER" 2>/dev/null || true
+
+  echo "${BOLD}${BLUE}Spouštím frontend kontejner z image...${RESET}"
+  docker run -d \
+    --env-file "$ENV_FILE" \
+    --name "$FRONTEND_CONTAINER" \
+    --restart unless-stopped \
+    --network "$NETWORK_NAME" \
+    -p 8081:8081 \
+    "$FRONTEND_IMAGE" || handle_error
+
+  echo "${BOLD}${GREEN}OPERACE PRO FRONTEND DOKONČENY${RESET}"
+  echo "${BOLD}${GREEN}Deploy frontendu z image dokončen.${RESET}"
+  echo "${BOLD}${BLUE}FE:${RESET} ${FE_URL:-"http://localhost:8081"}"
+  exit 0
+fi
 
 mkdir -p "$SCRIPT_DIR/frontend/repo"
 

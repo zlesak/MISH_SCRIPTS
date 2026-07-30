@@ -7,6 +7,7 @@ MODE="prod"
 RUN_FRONTEND=true
 BACKEND_BRANCH=""
 FRONTEND_BRANCH=""
+FRONTEND_IMAGE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -26,9 +27,13 @@ while [[ $# -gt 0 ]]; do
       FRONTEND_BRANCH="${1#*=}"
       shift
       ;;
+    --image-frontend=*)
+      FRONTEND_IMAGE="${1#*=}"
+      shift
+      ;;
     *)
       echo "Neznámý argument: $1"
-      echo "Použití: $0 [--dev] [--no-frontend] [--branch-backend=NAZEV] [--branch-frontend=NAZEV]"
+      echo "Použití: $0 [--dev] [--no-frontend] [--branch-backend=NAZEV] [--branch-frontend=NAZEV] [--image-frontend=IMAGE]"
       exit 1
       ;;
   esac
@@ -44,6 +49,7 @@ BACKEND_ARGS=("${MODE_ARGS[@]}")
 
 FRONTEND_ARGS=("${MODE_ARGS[@]}")
 [[ -n "$FRONTEND_BRANCH" ]] && FRONTEND_ARGS+=("--branch-frontend=$FRONTEND_BRANCH")
+[[ -n "$FRONTEND_IMAGE" ]] && FRONTEND_ARGS+=("--image-frontend=$FRONTEND_IMAGE")
 
 GATEWAY_ARGS=("${MODE_ARGS[@]}")
 
